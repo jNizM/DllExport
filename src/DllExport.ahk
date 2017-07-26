@@ -6,18 +6,20 @@
 
 SetBatchLines -1
 
-global app         := { name: "DLL Export Viewer", version: "0.4", release: "2017-07-24" }
-global WinVersion  := RtlGetVersion()
-global CommonFiles := ["gdi32", "kernel32", "shell32", "user32"]
+global app          := { name: "DLL Export Viewer", version: "0.4", release: "2017-07-24" }
+global WinVersion   := RtlGetVersion()
+global CommonFiles  := ["gdi32", "kernel32", "shell32", "user32"]
+global IsExpandView := true
 
 if (WinVersion < 0x0501) {
     MsgBox, 0x1030, % "Requirements", % "The minimum operating system requirement is Windows XP or Windows Server 2003"
     ExitApp
 }
 
+
 ; MENU ==========================================================================================================================
 
-Menu, Tray, Icon, imageres.dll, 63
+Menu, Tray, Icon, shell32.dll, 73
 
 Menu, FileMenu, Add, % "&Open...`tCtrl+O",   MenuOpenFile
 Menu, FileMenu, Add, % "Load Common Dll's",  MenuOpenCommonFiles
@@ -32,6 +34,7 @@ Menu, EditMenu, Add, % "Show Info`tCtrl+I",  MenuShowInfo
 Menu, MenuBar,  Add, % "&Edit",             :EditMenu
 
 Menu, ViewMenu, Add, % "Expand View",        MenuCollapse
+Menu, ViewMenu, % (IsExpandView) ? "Check" : "UnCheck", % "Expand View"
 Menu, MenuBar,  Add, % "&View",             :ViewMenu
 
 Menu, HelpMenu, Add, % "&About`tF1",         MenuAbout
@@ -49,11 +52,12 @@ Gui, Main: Color, F1F5FB
 Gui, Main: Font, s9, Segoe UI
 
 Gui, Main: Add, ListView, xm ym w800 h450 vMyLV1 hWndhMyLV1 +LV0x14000, % "#|Function Name|Ordinal|Entry Point (RVA)|Module Name|Module Path"
-LV_ModifyCol(1, "Integer 40"), LV_ModifyCol(2, 330), LV_ModifyCol(3, "Integer 55"), LV_ModifyCol(4, 250), LV_ModifyCol(5, 103), LV_ModifyCol(6, 0)
+LV_ModifyCol(1, "Integer 40"), LV_ModifyCol(2, 330), LV_ModifyCol(3, "Integer 55"), LV_ModifyCol(4, 240), LV_ModifyCol(5, 113), LV_ModifyCol(6, 0)
 if (WinVersion >= 0x0600)
     SetWindowTheme(hMyLV1)
 
-Gui, Main: Add, ListView, x+7 ym w200 h450 gMyLV2 vMyLV2 hWndhMyLV2 +LV0x14000 +Hidden, % "ModuleName"
+Gui, Main: Add, ListView, x+7 ym w200 h450 gMyLV2 vMyLV2 hWndhMyLV2 +LV0x14000, % "ModuleName"
+GuiControl, % (IsExpandView) ? "Show" : "Hide", MyLV2
 LV_ModifyCol(1, 178)
 if (WinVersion >= 0x0600)
     SetWindowTheme(hMyLV2)
@@ -106,8 +110,7 @@ ChildInfo(function, rva, ordinal, module, path)
 
 ; WINDOW EVENTS =================================================================================================================
 
-MainContextMenu()
-{
+MainContextMenu:
     Gui, ListView, MyLV1
     if (A_GuiControl = "MyLV1") && (LV_GetNext() > 0) {
         Menu, ContextMenuLV1, Add, % "Copy", ContextCopy
@@ -120,23 +123,21 @@ MainContextMenu()
         Menu, ContextMenuLV2, Add, % "Load", ContextLoad
         Menu, ContextMenuLV2, Show, % A_GuiX, % A_GuiY
     }
-}
+return
 
-MainDropFiles()
-{
+MainDropFiles:
     GetFile := []
     loop, parse, A_GuiEvent, `n
     {
         SplitPath, A_LoopField,,, ext
-        if (ext = "dll") {
-            GetFile.Push(A_LoopField)
-        } else {
+        if (ext != "dll") {
             MsgBox, 0x1030, % "Load File", % "The selected file is not a valid DLL file. Please select a valid DLL file and try again."
             break
         }
+        GetFile.Push(A_LoopField)
     }
     LV_LoadFiles(GetFile*)
-}
+return
 
 MenuClose:
 MainClose:
@@ -146,28 +147,26 @@ return
 
 ; SCRIPT ========================================================================================================================
 
-MenuOpenFile()
-{
+MenuOpenFile:
     GetFile := ""
     FileSelectFile, GetFile, 3, % A_WinDir "\System32", % "Open", % "Dynamic-link library (*.dll)"
-    if (GetFile)
+    if !(ErrorLevel)
         LV_LoadFiles(GetFile)
-}
+return
 
-MenuOpenCommonFiles()
-{
+MenuOpenCommonFiles:
     GetFile := []
     for each, File in CommonFiles
         GetFile.Push(A_WinDir "\system32\" File ".dll")
     LV_LoadFiles(GetFile*)
-}
+return
 
 MenuCopy:
 ContextCopy:
-    Gui, Main: Default
     ColNum := LVM_SUBITEMHITTEST(hMyLV1)
     ControlGet, CopyList, List, Selected Col%ColNum%, SysListView321, % "ahk_id " hMainGUI
-    Clipboard := CopyList
+    if !(ErrorLevel)
+        Clipboard := CopyList
 return
 
 MenuSelect:
@@ -179,79 +178,78 @@ return
 
 MenuShowInfo:
 ContextShowInfo:
-    Gui, Main: Default
     GetInfo := []
-    ControlGet, List, List, Focused, SysListView321, % "ahk_id " hMainGUI
-    if (List != "") {
-        loop, parse, List, `t
+    ControlGet, ShowList, List, Focused, SysListView321, % "ahk_id " hMainGUI
+    if !(ErrorLevel) {
+        loop, parse, ShowList, `t
             GetInfo.Push(A_LoopField)
         ChildInfo(GetInfo[2], GetInfo[4], GetInfo[3], GetInfo[5], GetInfo[6])
     }
 return
 
-MenuCollapse()
-{
-    global
-    if !(MenuChecked) {
+MenuCollapse:
+    if !(IsExpandView) {
         Menu, ViewMenu, Check, % "Expand View"
         GuiControl, Show, MyLV2
         Gui, Main: Show, AutoSize
-        MenuChecked := true
+        IsExpandView := true
     } else {
         Menu, ViewMenu, UnCheck, % "Expand View"
         GuiControl, Hide, MyLV2
         Gui, Main: Show, AutoSize
-        MenuChecked := false
+        IsExpandView := false
     }
-}
+return
 
 MyLV2:
     if (A_GuiEvent = "DoubleClick") {
         GetFile := ""
         Gui, ListView, MyLV2
-        LV_GetText(GetFile, LV_GetNext(0, "Focused"), 1)
-        if (GetFile != "") {
-            GetFile := A_WinDir "\system32\" GetFile
-            LV_LoadFiles(GetFile)
-        }
+        LV_Err := LV_GetText(GetFile, LV_GetNext(0, "Focused"), 1)
+        if (LV_Err) && (GetFile != "")
+            LV_LoadFiles(A_WinDir "\system32\" GetFile)
     }
 return
 
-ContextLoad()
-{
-    global
-    local GetList, GetFile := []
-    Gui, Main: Default
+ContextLoad:
+    GetFile := []
     ControlGet, GetList, List, Selected Col1, SysListView322, % "ahk_id " hMainGUI
-    loop, parse, GetList, `n
-        GetFile.Push(A_WinDir "\system32\" A_LoopField)
-    LV_LoadFiles(GetFile*)
-}
+    if !(ErrorLevel) {
+        loop, parse, GetList, `n
+            GetFile.Push(A_WinDir "\system32\" A_LoopField)
+        LV_LoadFiles(GetFile*)
+    }
+return
+
+MenuAbout:
+return
+
 
 LV_LoadFiles(DllFiles*)
 {
-    global
-    local DllFile
+    global hMyEdit, hCounter, DllLoaded
     GuiControl,, % hMyEdit, % ""
     GuiControl,, % hCounter, % "Loading Functions..."
-    DllLoaded := []
+    DllExports := [], DllLoaded := []
     for each, DllFile in DllFiles {
         SplitPath, DllFile, ModuleName,,
         DllExports := GetDllExports(DllFile), index := 0
-        loop % DllExports.Functions.Length()
+        sleep -1
+        loop % DllExports.Functions.Length() {
             DllLoaded.Push({ n: DllExports.Functions[A_Index].Name
                            , o: DllExports.Functions[A_Index].Ordinal
                            , e: DllExports.Functions[A_Index].EntryPoint
                            , m: ModuleName
                            , p: DllExports.ModuleName
                            , i: ++index })
+        }
     }
     LV_ShowTable(DllLoaded)
 }
 
 LV_ShowTable(Table)
 {
-    global
+    global hMyEdit, hCounter
     Gui, ListView, MyLV1
     LV_Delete()
     for k, v in Table
@@ -262,7 +260,7 @@ LV_ShowTable(Table)
 
 LV_SearchTable()
 {
-    global
+    global hMyEdit, hCounter, DllLoaded
     GuiControlGet, SearchFiled,, % hMyEdit
     Gui, ListView, MyLV1
     LV_Delete()
@@ -272,9 +270,6 @@ LV_SearchTable()
     GuiControl,, % hCounter, % LV_GetCount() " Functions"
     SetFocus(hMyEdit)
 }
-
-MenuAbout:
-return
 
 
 ; FUNCTIONS =====================================================================================================================
@@ -378,6 +373,7 @@ GetDllExports(DllFile)
     static IMAGE_FILE_MACHINE_I386  := 0x014c
     static IMAGE_FILE_MACHINE_AMD64 := 0x8664
 
+    hIMAGEHLP := DllCall("LoadLibrary", "str", "imagehlp.dll", "ptr") ; <-- fix an issue on Win XP - need to be preloaded before
     VarSetCapacity(LOADED_IMAGE, 88, 0), Export := { ModuleName: "", Total: 0, Names: 0, OrdBase: 0, Bitness: 0, Functions: [] }
     if (DllCall("imagehlp\MapAndLoad", "astr", DllFile, "ptr", 0, "ptr", &LOADED_IMAGE, "int", 1, "int", 1))
     {
@@ -417,6 +413,7 @@ GetDllExports(DllFile)
         DllCall("imagehlp\UnMapAndLoad", "ptr", &LOADED_IMAGE)
     }
     Export.Names := Export.Functions.Length()
+    DllCall("FreeLibrary", "ptr", hIMAGEHLP) ; <-- fix an issue on Win XP - need to be preloaded before
     return Export
 }
 
