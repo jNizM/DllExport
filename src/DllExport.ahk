@@ -6,39 +6,43 @@
 
 SetBatchLines -1
 
-global app          := { name: "DLL Export Viewer", version: "0.4", release: "2017-07-24" }
-global WinVersion   := RtlGetVersion()
-global CommonFiles  := ["gdi32", "kernel32", "shell32", "user32"]
-global IsExpandView := true
+global app           := { name: "DLL Export Viewer", version: "0.6", release: "2017-07-28" }
+global WinVersion    := RtlGetVersion()
+global CommonFiles   := ["gdi32", "kernel32", "shell32", "user32"]
+global IsExpandView  := true
 
 if (WinVersion < 0x0501) {
     MsgBox, 0x1030, % "Requirements", % "The minimum operating system requirement is Windows XP or Windows Server 2003"
     ExitApp
 }
 
+if (WinVersion >= 0x0501) && (WinVersion <= 0x0502)
+    hIMAGEHLP := DllCall("LoadLibrary", "str", "imagehlp.dll", "ptr") ; <-- fix an issue on Win XP - need to be preloaded before
+
 
 ; MENU ==========================================================================================================================
 
 Menu, Tray, Icon, shell32.dll, 73
 
-Menu, FileMenu, Add, % "&Open...`tCtrl+O",   MenuOpenFile
-Menu, FileMenu, Add, % "Load Common Dll's",  MenuOpenCommonFiles
+Menu, FileMenu, Add, % "&Open...`tCtrl+O",      MenuOpenFile
+Menu, FileMenu, Add, % "Load Common Dll's",     MenuOpenCommonFiles
 Menu, FileMenu, Add
-Menu, FileMenu, Add, % "E&xit`tAlt+F4",      MenuClose
-Menu, MenuBar,  Add, % "&File",             :FileMenu
+Menu, FileMenu, Add, % "E&xit`tAlt+F4",         MenuClose
+Menu, MenuBar,  Add, % "&File",                :FileMenu
 
-Menu, EditMenu, Add, % "Copy",               MenuCopy
-Menu, EditMenu, Add, % "Select All`tCtrl+A", MenuSelect
+Menu, EditMenu, Add, % "Copy",                  MenuCopy
+Menu, EditMenu, Add, % "Select All`tCtrl+A",    MenuSelect
 Menu, EditMenu, Add
-Menu, EditMenu, Add, % "Show Info`tCtrl+I",  MenuShowInfo
-Menu, MenuBar,  Add, % "&Edit",             :EditMenu
+Menu, EditMenu, Add, % "Function Info`tCtrl+F", MenuShowFInfo
+Menu, EditMenu, Add, % "Module Info`tCtrl+M",   MenuShowMInfo
+Menu, MenuBar,  Add, % "&Edit",                :EditMenu
 
-Menu, ViewMenu, Add, % "Expand View",        MenuCollapse
+Menu, ViewMenu, Add, % "Expand View",           MenuCollapse
 Menu, ViewMenu, % (IsExpandView) ? "Check" : "UnCheck", % "Expand View"
-Menu, MenuBar,  Add, % "&View",             :ViewMenu
+Menu, MenuBar,  Add, % "&View",                :ViewMenu
 
-Menu, HelpMenu, Add, % "&About`tF1",         MenuAbout
-Menu, MenuBar,  Add, % "&Help",             :HelpMenu
+Menu, HelpMenu, Add, % "&About`tF1",            MenuAbout
+Menu, MenuBar,  Add, % "&Help",                :HelpMenu
 
 Gui, Main: Menu, MenuBar
 
@@ -64,58 +68,105 @@ if (WinVersion >= 0x0600)
 loop, files, % A_WinDir "\system32\*.dll"
     LV_Add("", A_LoopFileName)
 
-Gui, Main: Add, Edit, xm y+7 w230 h23 +0x2000000 hWndhMyEdit gLV_SearchTable
+Gui, Main: Add, Edit, xm y+7 w230 h23 +0x2000000 hWndhMyEdit1 gLV_SearchTable
 if (WinVersion >= 0x0600)
-    EM_SETCUEBANNER(hMyEdit, "Enter search here")
+    EM_SETCUEBANNER(hMyEdit1, "Enter search here")
 
 Gui, Main: Add, Text, x+450 yp w120 h23 +0x202 hWndhCounter, % ""
+
 Gui, Main: Show, AutoSize, % app.name
-SetFocus(hMyEdit)
+
+WindowProcNew := RegisterCallback("WindowProc", "", 4, hMyLV2)
+WindowProcOld := DllCall((A_PtrSize = 8) ? "SetWindowLongPtr" : "SetWindowLong", "ptr", hMyLV2, "int", -4, "ptr", WindowProcNew, "ptr")
+
+SetFocus(hMyEdit1)
 HideFocusBorder(hMainGUI)
 return
 
 
 ; CHILDS ========================================================================================================================
 
-ChildInfo(function, rva, ordinal, module, path)
+ChildFunctionInfo(function, rva, ordinal, module, path)
 {
-    Gui, Main: +0x8000000
-    Gui, Info: New, -MinimizeBox +LabelInfo +OwnerMain +hWndhInfoGui
-    Gui, Info: +LastFound
-    Gui, Info: Margin, 7, 7
-    Gui, Info: Font, s10, Segoe UI
-    Gui, Info: Add, Text, xm ym w180 h25 0x200, % "Function Name:"
-    Gui, Info: Add, Edit, x+1 yp w350 0x800, % function
-    Gui, Info: Add, Text, xm y+4 w180 h25 0x200, % "Entry Point (RVA):"
-    Gui, Info: Add, Edit, x+1 yp w350 0x800, % rva
-    Gui, Info: Add, Text, xm y+4 w180 h25 0x200, % "Ordinal"
-    Gui, Info: Add, Edit, x+1 yp w350 0x800, % ordinal "   (" Format("0x{:x}", ordinal) ")"
-    Gui, Info: Add, Text, xm y+4 w180 h25 0x200, % "Modulename:"
-    Gui, Info: Add, Edit, x+1 yp w350 0x800, % module
-    Gui, Info: Add, Text, xm y+4 w180 h25 0x200, % "Full Path:"
-    Gui, Info: Add, Edit, x+1 yp w350 0x800, % path
-    Gui, Info: Add, Text, xm y+4 w180 h25 0x200, % "UnDecorateSymbolName:"
-    Gui, Info: Add, Edit, xm y+4 w534 r3 0x800, % UnDecorateSymbolName(function)
-    Gui, Info: Show, AutoSize, % ""
+    Gui, Main:  +0x8000000
+    Gui, FInfo: New, -MinimizeBox +LabelFInfo +OwnerMain +hWndhFInfoGui
+    Gui, FInfo: +LastFound
+    Gui, FInfo: Margin, 7, 7
+    Gui, FInfo: Font, s10, Segoe UI
+    Gui, FInfo: Add, Text, xm ym w180 h25 0x200, % "Function Name:"
+    Gui, FInfo: Add, Edit, x+1 yp w350 0x800, % function
+    Gui, FInfo: Add, Text, xm y+4 w180 h25 0x200, % "Entry Point (RVA):"
+    Gui, FInfo: Add, Edit, x+1 yp w350 0x800, % rva
+    Gui, FInfo: Add, Text, xm y+4 w180 h25 0x200, % "Ordinal:"
+    Gui, FInfo: Add, Edit, x+1 yp w350 0x800, % ordinal "   (" Format("0x{:x}", ordinal) ")"
+    Gui, FInfo: Add, Text, xm y+4 w180 h25 0x200, % "Modulename:"
+    Gui, FInfo: Add, Edit, x+1 yp w350 0x800, % module
+    Gui, FInfo: Add, Text, xm y+4 w180 h25 0x200, % "Full Path:"
+    Gui, FInfo: Add, Edit, x+1 yp w350 0x800, % path
+    Gui, FInfo: Add, Text, xm y+4 w180 h25 0x200, % "UnDecorateSymbolName:"
+    Gui, FInfo: Add, Edit, xm y+4 w534 r3 0x800, % UnDecorateSymbolName(function)
+    Gui, FInfo: Show, AutoSize, % "Function Info"
     WinWaitClose
     return
 
-    InfoEscape:
-    InfoClose:
+    FInfoEscape:
+    FInfoClose:
         Gui, Main: -0x8000000
-        Gui, Info: Destroy
+        Gui, FInfo: Destroy
+    return
+}
+
+ChildModuleInfo(module)
+{
+    FileInfo := GetFileVersionInfo(module)
+    Gui, Main:  +0x8000000
+    Gui, MInfo: New, -MinimizeBox +LabelMInfo +OwnerMain +hWndhMInfoGui
+    Gui, MInfo: +LastFound
+    Gui, MInfo: Margin, 7, 7
+    Gui, MInfo: Font, s10, Segoe UI
+    Gui, MInfo: Add, Text, xm ym w180 h25 0x200, % "ModuleName:"
+    Gui, MInfo: Add, Edit, x+1 yp w350 0x800, % module
+    Gui, MInfo: Add, Text, xm y+4 w180 h25 0x200, % "OriginalFilename:"
+    Gui, MInfo: Add, Edit, x+1 yp w350 0x800, % FileInfo.OriginalFilename
+    Gui, MInfo: Add, Text, xm y+4 w180 h25 0x200, % "CompanyName:"
+    Gui, MInfo: Add, Edit, x+1 yp w350 0x800, % FileInfo.CompanyName
+    Gui, MInfo: Add, Text, xm y+4 w180 h25 0x200, % "ProductVersion:"
+    Gui, MInfo: Add, Edit, x+1 yp w350 0x800, % FileInfo.ProductVersion
+    Gui, MInfo: Add, Text, xm y+4 w180 h25 0x200, % "FileVersion:"
+    Gui, MInfo: Add, Edit, x+1 yp w350 0x800, % FileInfo.FileVersion
+    Gui, MInfo: Show, AutoSize, % "Module Info"
+    WinWaitClose
+    return
+
+    MInfoEscape:
+    MInfoClose:
+        Gui, Main: -0x8000000
+        Gui, MInfo: Destroy
     return
 }
 
 
 ; WINDOW EVENTS =================================================================================================================
 
+WindowProc(hWnd, Msg, wParam, lParam)
+{
+    critical
+    global WindowProcOld, hMyLV2
+    static WM_GETDLGCODE := 0x0087, VK_RETURN := 0x000D
+    if (hWnd = hMyLV2) && (Msg = WM_GETDLGCODE) && (wParam = VK_RETURN) {
+        ContextLoad()
+        return true
+    }
+    return DllCall("CallWindowProc", "ptr", WindowProcOld, "ptr", hWnd, "uint", Msg, "ptr", wParam, "ptr", lParam)
+}
+
 MainContextMenu:
     Gui, ListView, MyLV1
     if (A_GuiControl = "MyLV1") && (LV_GetNext() > 0) {
         Menu, ContextMenuLV1, Add, % "Copy", ContextCopy
         Menu, ContextMenuLV1, Add, % "Select All`tCtrl+A", ContextSelect
-        Menu, ContextMenuLV1, Add, % "Show`tCtrl+I", ContextShowInfo
+        Menu, ContextMenuLV1, Add, % "Function Info`tCtrl+F", ContextShowFInfo
+        Menu, ContextMenuLV1, Add, % "Module Info`tCtrl+M", ContextShowMInfo
         Menu, ContextMenuLV1, Show, % A_GuiX, % A_GuiY
     }
     Gui, ListView, MyLV2
@@ -141,6 +192,8 @@ return
 
 MenuClose:
 MainClose:
+    if (hIMAGEHLP)
+        DllCall("FreeLibrary", "ptr", hIMAGEHLP) ; <-- fix an issue on Win XP - need to be preloaded before
     ExitApp
 return
 
@@ -176,15 +229,25 @@ ContextSelect:
     LV_Modify(0, "Select")
 return
 
-MenuShowInfo:
-ContextShowInfo:
+MenuShowFInfo:
+ContextShowFInfo:
     GetInfo := []
+    Gui, Main: Default
     ControlGet, ShowList, List, Focused, SysListView321, % "ahk_id " hMainGUI
     if !(ErrorLevel) {
         loop, parse, ShowList, `t
             GetInfo.Push(A_LoopField)
-        ChildInfo(GetInfo[2], GetInfo[4], GetInfo[3], GetInfo[5], GetInfo[6])
+        ChildFunctionInfo(GetInfo[2], GetInfo[4], GetInfo[3], GetInfo[5], GetInfo[6])
     }
+return
+
+MenuShowMInfo:
+ContextShowMInfo:
+    GetModule := ""
+    Gui, Main: Default
+    ControlGet, GetModule, List, Focused Col5, SysListView321, % "ahk_id " hMainGUI
+    if !(ErrorLevel) && (GetModule != "")
+        ChildModuleInfo(GetModule)
 return
 
 MenuCollapse:
@@ -211,7 +274,9 @@ MyLV2:
     }
 return
 
-ContextLoad:
+ContextLoad()
+{
+    global hMainGUI
     GetFile := []
     ControlGet, GetList, List, Selected Col1, SysListView322, % "ahk_id " hMainGUI
     if !(ErrorLevel) {
@@ -219,18 +284,15 @@ ContextLoad:
             GetFile.Push(A_WinDir "\system32\" A_LoopField)
         LV_LoadFiles(GetFile*)
     }
-return
-
-MenuAbout:
-return
-
+}
 
 LV_LoadFiles(DllFiles*)
 {
-    global hMyEdit, hCounter, DllLoaded
-    GuiControl,, % hMyEdit, % ""
-    GuiControl,, % hCounter, % "Loading Functions..."
-    DllExports := [], DllLoaded := []
+    global hCounter, DllLoaded, IsSearchPause
+
+    SetWindowText(hCounter, "Loading Functions...")
+    IsSearchPause := true, CreateTitle := "", DllExports := [], DllLoaded := []
+
     for each, DllFile in DllFiles {
         SplitPath, DllFile, ModuleName,,
         DllExports := GetDllExports(DllFile), index := 0
@@ -243,38 +305,59 @@ LV_LoadFiles(DllFiles*)
                            , p: DllExports.ModuleName
                            , i: ++index })
         }
+        CreateTitle .= ModuleName " / "
     }
-    LV_ShowTable(DllLoaded)
+    LV_ShowTable(DllLoaded, SubStr(CreateTitle, 1, -3))
 }
 
-LV_ShowTable(Table)
+LV_ShowTable(Table, SetTitle)
 {
-    global hMyEdit, hCounter
-    Gui, ListView, MyLV1
-    LV_Delete()
-    for k, v in Table
-        LV_Add("", v.i, v.n, v.o, v.e, v.m, v.p)
-    GuiControl,, % hCounter, % LV_GetCount() " Functions"
-    SetFocus(hMyEdit)
+    global hMainGUI, hCounter, hMyEdit1
+
+    if (IsObject(Table)) {
+        Gui, Main: Default
+        GuiControl, -Redraw, MyLV1
+        Gui, ListView, MyLV1
+        LV_Delete()
+
+        for key, value in Table
+            LV_Add("", value.i, value.n, value.o, value.e, value.m, value.p)
+
+        SetWindowText(hMainGUI, app.name "  [ " SetTitle " ]")
+        SetWindowText(hCounter, LV_GetCount() " Functions")
+        SetWindowText(hMyEdit1, "")
+    }
+    GuiControl, +Redraw, MyLV1
 }
 
 LV_SearchTable()
 {
-    global hMyEdit, hCounter, DllLoaded
-    GuiControlGet, SearchFiled,, % hMyEdit
-    Gui, ListView, MyLV1
-    LV_Delete()
-    for k, v in DllLoaded
-        if (InStr(v.n, SearchFiled))
-            LV_Add("", v.i, v.n, v.o, v.e, v.m, v.p)
-    GuiControl,, % hCounter, % LV_GetCount() " Functions"
-    SetFocus(hMyEdit)
+    global hCounter, hMyEdit1, DllLoaded, IsSearchPause
+
+    if !(IsSearchPause) {
+        Gui, Main: Default
+        GuiControlGet, SearchField,, % hMyEdit1
+        GuiControl, -Redraw, MyLV1
+        Gui, ListView, MyLV1
+        LV_Delete()
+
+        for key, value in DllLoaded
+            if (InStr(value.n, SearchField))
+                LV_Add("", value.i, value.n, value.o, value.e, value.m, value.p)
+
+        SetWindowText(hCounter, LV_GetCount() " Functions"), SetFocus(hMyEdit1)
+        GuiControl, +Redraw, MyLV1
+    }
+    IsSearchPause := false
 }
+
+MenuAbout:
+return
 
 
 ; FUNCTIONS =====================================================================================================================
 
-RtlGetVersion()
+RtlGetVersion()  ; https://msdn.microsoft.com/en-us/library/mt723418(v=vs.85).aspx
 {
     ; 0x0A00 - Windows 10
     ; 0x0603 - Windows 8.1
@@ -289,7 +372,7 @@ RtlGetVersion()
     return ((NumGet(RTL_OSV_EX, 4, "uint") << 8) | NumGet(RTL_OSV_EX, 8, "uint"))
 }
 
-EM_SETCUEBANNER(handle, string, hideonfocus := true)
+EM_SETCUEBANNER(handle, string, hideonfocus := true)  ; https://msdn.microsoft.com/en-us/library/bb761639(v=vs.85).aspx
 {
     static EM_SETCUEBANNER := 0x1501
     if !(DllCall("user32\SendMessage", "ptr", handle, "uint", EM_SETCUEBANNER, "int", hideonfocus, "str", string, "int"))
@@ -297,24 +380,32 @@ EM_SETCUEBANNER(handle, string, hideonfocus := true)
     return true
 }
 
-SetWindowTheme(handle)
+SetWindowTheme(handle)  ; https://msdn.microsoft.com/en-us/library/bb759827(v=vs.85).aspx
 {
     if (HRESULT := DllCall("uxtheme\SetWindowTheme", "ptr", handle, "wstr", "Explorer", "ptr", 0) != 0)
         throw Exception("SetWindowTheme failed: " HRESULT, -1)
     return true
 }
 
-SetFocus(handle)
+SetFocus(handle)  ; https://msdn.microsoft.com/en-us/library/ms646312(v=vs.85).aspx
 {
     if !(DllCall("user32\SetFocus", "ptr", handle, "ptr"))
         throw Exception("SetFocus failed: " A_LastError, -1)
     return true
 }
 
-SetWindowText(handle, string)
+SetWindowText(handle, string)  ; https://msdn.microsoft.com/en-us/library/ms633546(v=vs.85).aspx
 {
     if !(DllCall("user32\SetWindowText", "ptr", handle, "str", string))
         throw Exception("SetWindowText failed: " A_LastError, -1)
+    return true
+}
+
+WM_SETTEXT(handle, string)  ; https://msdn.microsoft.com/en-us/library/ms632644(v=vs.85).aspx
+{
+    static WM_SETTEXT := 0x000C
+    if !(DllCall("user32\SendMessage", "ptr", handle, "uint", WM_SETTEXT, "ptr", 0, "str", string, "int"))
+        throw Exception("WM_SETTEXT failed", -1)
     return true
 }
 
@@ -373,7 +464,6 @@ GetDllExports(DllFile)
     static IMAGE_FILE_MACHINE_I386  := 0x014c
     static IMAGE_FILE_MACHINE_AMD64 := 0x8664
 
-    hIMAGEHLP := DllCall("LoadLibrary", "str", "imagehlp.dll", "ptr") ; <-- fix an issue on Win XP - need to be preloaded before
     VarSetCapacity(LOADED_IMAGE, 88, 0), Export := { ModuleName: "", Total: 0, Names: 0, OrdBase: 0, Bitness: 0, Functions: [] }
     if (DllCall("imagehlp\MapAndLoad", "astr", DllFile, "ptr", 0, "ptr", &LOADED_IMAGE, "int", 1, "int", 1))
     {
@@ -413,17 +503,35 @@ GetDllExports(DllFile)
         DllCall("imagehlp\UnMapAndLoad", "ptr", &LOADED_IMAGE)
     }
     Export.Names := Export.Functions.Length()
-    DllCall("FreeLibrary", "ptr", hIMAGEHLP) ; <-- fix an issue on Win XP - need to be preloaded before
     return Export
 }
 
-UnDecorateSymbolName(Decorated)
+UnDecorateSymbolName(Decorated)  ; https://msdn.microsoft.com/en-us/library/ms681400(v=vs.85).aspx
 {
     Length := VarSetCapacity(UnDecorated, 2048, 0)
     if (size := DllCall("imagehlp\UnDecorateSymbolName", "astr", Decorated, "ptr", &UnDecorated, "uint", Length, "uint", 0, "uint"))
         return StrGet(&UnDecorated, size, "cp0")
     else
         return Decorated
+}
+
+GetFileVersionInfo(FileName)
+{
+    static StringTable := ["OriginalFilename", "CompanyName", "ProductVersion", "FileVersion"]
+
+    if (size := DllCall("version\GetFileVersionInfoSize", "str", FileName, "ptr", 0, "uint")) {
+        size := VarSetCapacity(data, size + A_PtrSize)
+        if (DllCall("version\GetFileVersionInfo", "str", FileName, "uint", 0, "uint", size, "ptr", &data)) {
+            if (DllCall("version\VerQueryValue", "ptr", &data, "str", "\VarFileInfo\Translation", "ptr*", buf, "ptr*", len)) {
+                LangCP := Format("{:04X}{:04X}", NumGet(buf+0, "ushort"), NumGet(buf+2, "ushort")), FileInfo := {}
+                for i, v in StringTable
+                    if (DllCall("version\VerQueryValue", "ptr", &data, "str", "\StringFileInfo\" LangCP "\" v, "ptr*", buf, "ptr*", len))
+                        FileInfo[v] := StrGet(buf, len)
+                return FileInfo
+            }
+        }
+    }
+    return false
 }
 
 

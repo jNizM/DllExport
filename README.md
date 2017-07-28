@@ -6,17 +6,18 @@ Displays a list of all exported functions for the specified Dll files.
 * Displays the name of the function
 * Displays the ordinal of the function
 * Displays the entry point (the relative address) of the function or its forward string
+* Displays OriginalFilename / CompanyName / ProductVersion / FileVersion from a module
 * Load common dll's / use drag and drop / filter by searchbar
 
 
-## Example
+## Examples
 ![DllExport](img/DllExport.png)
 ![DllExport](img/DllExport_2.png)
 ![DllExport](img/DllExport_3.png)
 ![DllExport](img/DllExport_4.png)
 
 
-## Info
+## Infos
 * [AHK Thread](https://autohotkey.com/boards/viewtopic.php?t=34262)
 * [MapAndLoad](https://msdn.microsoft.com/en-us/library/ms680353(v=vs.85).aspx) & [UnMapAndLoad](https://msdn.microsoft.com/en-us/library/ms681404(v=vs.85).aspx)
 * [ImageDirectoryEntryToData](https://msdn.microsoft.com/en-us/library/ms680148(v=vs.85).aspx)
@@ -30,6 +31,7 @@ Displays a list of all exported functions for the specified Dll files.
 * thanks Bentschi for LoadLibrary()
 * thanks SKAN for DllListExports()
 * thanks 'just me' for GetNamedDllExports() and his testings
+* thanks Drugwash for his tips and his testings
 * thanks Alguimist for his gui design idea
 
 
