@@ -6,7 +6,7 @@
 
 SetBatchLines -1
 
-global app           := { name: "DLL Export Viewer", version: "0.6", release: "2017-07-28" }
+global app           := { name: "DLL Export Viewer", version: "0.6.1", release: "2017-07-28" }
 global WinVersion    := RtlGetVersion()
 global CommonFiles   := ["gdi32", "kernel32", "shell32", "user32"]
 global IsExpandView  := true
@@ -116,16 +116,17 @@ ChildFunctionInfo(function, rva, ordinal, module, path)
     return
 }
 
-ChildModuleInfo(module)
+ChildModuleInfo(ModulePath)
 {
-    FileInfo := GetFileVersionInfo(module)
+    FileInfo := GetFileVersionInfo(ModulePath)
+    SplitPath, ModulePath, ModuleName,,
     Gui, Main:  +0x8000000
     Gui, MInfo: New, -MinimizeBox +LabelMInfo +OwnerMain +hWndhMInfoGui
     Gui, MInfo: +LastFound
     Gui, MInfo: Margin, 7, 7
     Gui, MInfo: Font, s10, Segoe UI
     Gui, MInfo: Add, Text, xm ym w180 h25 0x200, % "ModuleName:"
-    Gui, MInfo: Add, Edit, x+1 yp w350 0x800, % module
+    Gui, MInfo: Add, Edit, x+1 yp w350 0x800, % ModuleName
     Gui, MInfo: Add, Text, xm y+4 w180 h25 0x200, % "OriginalFilename:"
     Gui, MInfo: Add, Edit, x+1 yp w350 0x800, % FileInfo.OriginalFilename
     Gui, MInfo: Add, Text, xm y+4 w180 h25 0x200, % "CompanyName:"
@@ -245,7 +246,7 @@ MenuShowMInfo:
 ContextShowMInfo:
     GetModule := ""
     Gui, Main: Default
-    ControlGet, GetModule, List, Focused Col5, SysListView321, % "ahk_id " hMainGUI
+    ControlGet, GetModule, List, Focused Col6, SysListView321, % "ahk_id " hMainGUI
     if !(ErrorLevel) && (GetModule != "")
         ChildModuleInfo(GetModule)
 return
@@ -326,8 +327,8 @@ LV_ShowTable(Table, SetTitle)
         SetWindowText(hMainGUI, app.name "  [ " SetTitle " ]")
         SetWindowText(hCounter, LV_GetCount() " Functions")
         SetWindowText(hMyEdit1, "")
+        GuiControl, +Redraw, MyLV1
     }
-    GuiControl, +Redraw, MyLV1
 }
 
 LV_SearchTable()
