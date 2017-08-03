@@ -6,7 +6,7 @@
 
 SetBatchLines -1
 
-global app           := { name: "DLL Export Viewer", version: "0.6.1", release: "2017-07-28" }
+global app           := { name: "DLL Export Viewer", version: "0.6.2", release: "2017-08-01" }
 global WinVersion    := RtlGetVersion()
 global CommonFiles   := ["gdi32", "kernel32", "shell32", "user32"]
 global IsExpandView  := true
@@ -16,8 +16,7 @@ if (WinVersion < 0x0501) {
     ExitApp
 }
 
-if (WinVersion >= 0x0501) && (WinVersion <= 0x0502)
-    hIMAGEHLP := DllCall("LoadLibrary", "str", "imagehlp.dll", "ptr") ; <-- fix an issue on Win XP - need to be preloaded before
+hIMAGEHLP := DllCall("LoadLibrary", "str", "imagehlp.dll", "ptr")
 
 
 ; MENU ==========================================================================================================================
@@ -57,20 +56,17 @@ Gui, Main: Font, s9, Segoe UI
 
 Gui, Main: Add, ListView, xm ym w800 h450 vMyLV1 hWndhMyLV1 +LV0x14000, % "#|Function Name|Ordinal|Entry Point (RVA)|Module Name|Module Path"
 LV_ModifyCol(1, "Integer 40"), LV_ModifyCol(2, 330), LV_ModifyCol(3, "Integer 55"), LV_ModifyCol(4, 240), LV_ModifyCol(5, 113), LV_ModifyCol(6, 0)
-if (WinVersion >= 0x0600)
-    SetWindowTheme(hMyLV1)
+SetWindowTheme(hMyLV1)
 
 Gui, Main: Add, ListView, x+7 ym w200 h450 gMyLV2 vMyLV2 hWndhMyLV2 +LV0x14000, % "ModuleName"
 GuiControl, % (IsExpandView) ? "Show" : "Hide", MyLV2
 LV_ModifyCol(1, 178)
-if (WinVersion >= 0x0600)
-    SetWindowTheme(hMyLV2)
+SetWindowTheme(hMyLV2)
 loop, files, % A_WinDir "\system32\*.dll"
     LV_Add("", A_LoopFileName)
 
 Gui, Main: Add, Edit, xm y+7 w230 h23 +0x2000000 hWndhMyEdit1 gLV_SearchTable
-if (WinVersion >= 0x0600)
-    EM_SETCUEBANNER(hMyEdit1, "Enter search here")
+EM_SETCUEBANNER(hMyEdit1, "Enter search here")
 
 Gui, Main: Add, Text, x+450 yp w120 h23 +0x202 hWndhCounter, % ""
 
@@ -193,8 +189,6 @@ return
 
 MenuClose:
 MainClose:
-    if (hIMAGEHLP)
-        DllCall("FreeLibrary", "ptr", hIMAGEHLP) ; <-- fix an issue on Win XP - need to be preloaded before
     ExitApp
 return
 
@@ -278,7 +272,7 @@ return
 ContextLoad()
 {
     global hMainGUI
-    GetFile := []
+    GetFile := [], GetList := ""
     ControlGet, GetList, List, Selected Col1, SysListView322, % "ahk_id " hMainGUI
     if !(ErrorLevel) {
         loop, parse, GetList, `n
@@ -306,9 +300,9 @@ LV_LoadFiles(DllFiles*)
                            , p: DllExports.ModuleName
                            , i: ++index })
         }
-        CreateTitle .= ModuleName " / "
+        CreateTitle .= ModuleName ", "
     }
-    LV_ShowTable(DllLoaded, SubStr(CreateTitle, 1, -3))
+    LV_ShowTable(DllLoaded, SubStr(CreateTitle, 1, -2))
 }
 
 LV_ShowTable(Table, SetTitle)
@@ -375,17 +369,27 @@ RtlGetVersion()  ; https://msdn.microsoft.com/en-us/library/mt723418(v=vs.85).as
 
 EM_SETCUEBANNER(handle, string, hideonfocus := true)  ; https://msdn.microsoft.com/en-us/library/bb761639(v=vs.85).aspx
 {
+    global WinVersion
     static EM_SETCUEBANNER := 0x1501
-    if !(DllCall("user32\SendMessage", "ptr", handle, "uint", EM_SETCUEBANNER, "int", hideonfocus, "str", string, "int"))
-        throw Exception("EM_SETCUEBANNER failed", -1)
-    return true
+
+    if (WinVersion >= 0x0600)
+        if (DllCall("user32\SendMessage", "ptr", handle, "uint", EM_SETCUEBANNER, "int", hideonfocus, "str", string, "int"))
+            return true
+    return false
 }
 
 SetWindowTheme(handle)  ; https://msdn.microsoft.com/en-us/library/bb759827(v=vs.85).aspx
 {
-    if (HRESULT := DllCall("uxtheme\SetWindowTheme", "ptr", handle, "wstr", "Explorer", "ptr", 0) != 0)
-        throw Exception("SetWindowTheme failed: " HRESULT, -1)
-    return true
+    global WinVersion
+
+    if (WinVersion >= 0x0600) {
+        VarSetCapacity(ClassName, 1024, 0)
+        if (DllCall("user32\GetClassName", "ptr", handle, "str", ClassName, "int", 512, "int"))
+            if (ClassName = "SysListView32") || (ClassName = "SysTreeView32")
+                if !(DllCall("uxtheme\SetWindowTheme", "ptr", handle, "wstr", "Explorer", "ptr", 0))
+                    return true
+    }
+    return false
 }
 
 SetFocus(handle)  ; https://msdn.microsoft.com/en-us/library/ms646312(v=vs.85).aspx
@@ -402,22 +406,16 @@ SetWindowText(handle, string)  ; https://msdn.microsoft.com/en-us/library/ms6335
     return true
 }
 
-WM_SETTEXT(handle, string)  ; https://msdn.microsoft.com/en-us/library/ms632644(v=vs.85).aspx
-{
-    static WM_SETTEXT := 0x000C
-    if !(DllCall("user32\SendMessage", "ptr", handle, "uint", WM_SETTEXT, "ptr", 0, "str", string, "int"))
-        throw Exception("WM_SETTEXT failed", -1)
-    return true
-}
-
 LVM_SUBITEMHITTEST(handle) ; by 'just me'
 {
+    static LVM_SUBITEMHITTEST := 0x1039
+
     VarSetCapacity(POINT, 8, 0)
     DllCall("user32\GetCursorPos", "ptr", &POINT)
     DllCall("user32\ScreenToClient", "ptr", handle, "ptr", &POINT)
     VarSetCapacity(LVHITTESTINFO, 24, 0)
     NumPut(NumGet(POINT, 0, "int"), LVHITTESTINFO, 0, "int"), NumPut(NumGet(POINT, 4, "int"), LVHITTESTINFO, 4, "int")
-    if (DllCall("user32\SendMessage", "ptr", handle, "uint", 0x1039, "ptr", 0, "ptr", &LVHITTESTINFO) = -1)
+    if (DllCall("user32\SendMessage", "ptr", handle, "uint", LVM_SUBITEMHITTEST, "ptr", 0, "ptr", &LVHITTESTINFO) = -1)
         return 0
     return NumGet(LVHITTESTINFO, 16, "Int") + 1
 }
@@ -509,8 +507,8 @@ GetDllExports(DllFile)
 
 UnDecorateSymbolName(Decorated)  ; https://msdn.microsoft.com/en-us/library/ms681400(v=vs.85).aspx
 {
-    Length := VarSetCapacity(UnDecorated, 2048, 0)
-    if (size := DllCall("imagehlp\UnDecorateSymbolName", "astr", Decorated, "ptr", &UnDecorated, "uint", Length, "uint", 0, "uint"))
+    len := VarSetCapacity(UnDecorated, 2048, 0)
+    if (size := DllCall("imagehlp\UnDecorateSymbolName", "astr", Decorated, "ptr", &UnDecorated, "uint", len, "uint", 0, "uint"))
         return StrGet(&UnDecorated, size, "cp0")
     else
         return Decorated
