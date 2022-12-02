@@ -7,7 +7,7 @@
 	Modified ..: 2022-12-02
 	License ...: MIT
 	GitHub ....: https://github.com/jNizM/DllExport
-	Forum .....: https://www.autohotkey.com/boards/viewtopic.php?t=99817
+	Forum .....: https://www.autohotkey.com/boards/viewtopic.php?t=111097
 */
 
 
