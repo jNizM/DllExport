@@ -30,11 +30,11 @@ Displays a list of all exported functions for the specified Dll files.
 
 
 ## Contributing
-* thanks Bentschi for LoadLibrary()
-* thanks SKAN for DllListExports()
-* thanks 'just me' for GetNamedDllExports() and his testings
-* thanks Drugwash for his tips and his testings
-* thanks Alguimist for his gui design idea
+* thanks Bentschi for LoadLibrary() (v1.1)
+* thanks SKAN for DllListExports() (v1.1)
+* thanks 'just me' for GetNamedDllExports() and his testings (v1.1)
+* thanks Drugwash for his tips and his testings (v1.1)
+* thanks Alguimist for his gui design idea (v1.1)
 
 
 ## Inspired by
