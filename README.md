@@ -1,5 +1,5 @@
 # AHK Dll Export Viewer
-[![AHK](https://img.shields.io/badge/ahk-1.1.33.10-C3D69B.svg?style=flat-square)]()
+[![AHK](https://img.shields.io/badge/ahk-2.0--beta.15-C3D69B.svg?style=flat-square)]()
 [![OS](https://img.shields.io/badge/os-windows-C3D69B.svg?style=flat-square)]()
 [![Releases](https://img.shields.io/github/downloads/jNizM/DllExport/total.svg?style=flat-square&color=95B3D7)](https://github.com/jNizM/DllExport/releases)
 
@@ -22,7 +22,7 @@ Displays a list of all exported functions for the specified Dll files.
 
 
 ## Infos
-* [AHK Thread](https://autohotkey.com/boards/viewtopic.php?t=34262)
+* [AHK Thread](https://autohotkey.com/boards/viewtopic.php?t=111097)
 * [MapAndLoad](https://msdn.microsoft.com/en-us/library/ms680353(v=vs.85).aspx) & [UnMapAndLoad](https://msdn.microsoft.com/en-us/library/ms681404(v=vs.85).aspx)
 * [ImageDirectoryEntryToData](https://msdn.microsoft.com/en-us/library/ms680148(v=vs.85).aspx)
 * [ImageRvaToVa](https://msdn.microsoft.com/en-us/library/ms680218(v=vs.85).aspx)
@@ -45,7 +45,7 @@ Displays a list of all exported functions for the specified Dll files.
 
 
 ## Questions / Bugs / Issues
-If you notice any kind of bugs or issues, report them on the [AHK Thread](https://autohotkey.com/boards/viewtopic.php?t=34262). Same for any kind of questions.
+If you notice any kind of bugs or issues, report them on the [AHK Thread](https://autohotkey.com/boards/viewtopic.php?t=111097). Same for any kind of questions.
 
 
 ## Copyright and License
