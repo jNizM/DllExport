@@ -3,7 +3,7 @@
 /*
 	DllExportViewer (written in AutoHotkey)
 	Author ....: jNizM
-	Released ..: 2015-05-05
+	Released ..: 2017-07-10
 	Modified ..: 2022-12-02
 	License ...: MIT
 	GitHub ....: https://github.com/jNizM/DllExport
@@ -17,7 +17,7 @@
 ;@Ahk2Exe-SetFileVersion    0.9.1
 ;@Ahk2Exe-SetProductName    DllExportViewer
 ;@Ahk2Exe-SetProductVersion 2.0-beta.15
-;@Ahk2Exe-SetCopyright      (c) 2015-2022 jNizM
+;@Ahk2Exe-SetCopyright      (c) 2017-2022 jNizM
 ;@Ahk2Exe-SetLanguage       0x0407
 
 
