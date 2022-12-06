@@ -12,6 +12,7 @@ Displays a list of all exported functions for the specified Dll files.
 * Displays the entry point (the relative address) of the function or its forward string
 * Displays OriginalFilename / CompanyName / ProductVersion / FileVersion from a module
 * Load common dll's / use drag and drop / filter by searchbar
+* Search function in web (learn.microsoft.com)
 
 
 ## Examples
