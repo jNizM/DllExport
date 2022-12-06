@@ -4,7 +4,7 @@
 	DllExportViewer (written in AutoHotkey)
 	Author ....: jNizM
 	Released ..: 2017-07-10
-	Modified ..: 2022-12-02
+	Modified ..: 2022-12-06
 	License ...: MIT
 	GitHub ....: https://github.com/jNizM/DllExport
 	Forum .....: https://www.autohotkey.com/boards/viewtopic.php?t=111097
@@ -14,9 +14,9 @@
 ; COMPILER DIRECTIVES =======================================================================================================================================================
 
 ;@Ahk2Exe-SetDescription    DllExportViewer (x64)
-;@Ahk2Exe-SetFileVersion    0.9.1
+;@Ahk2Exe-SetFileVersion    0.9.2
 ;@Ahk2Exe-SetProductName    DllExportViewer
-;@Ahk2Exe-SetProductVersion 2.0-beta.15
+;@Ahk2Exe-SetProductVersion 2.0-rc.2
 ;@Ahk2Exe-SetCopyright      (c) 2017-2022 jNizM
 ;@Ahk2Exe-SetLanguage       0x0407
 
@@ -38,7 +38,12 @@ DllExportViewer()
 DllExportViewer(GuiTheme := "")
 {
 
-	App := Map("name", "DllExportViewer", "version", "0.9.1", "release", "2022-12-02", "author", "jNizM", "licence", "MIT")
+	App     := Map("name", "DllExportViewer", "version", "0.9.2", "release", "2022-12-06", "author", "jNizM", "licence", "MIT")
+
+	Common  := Array("gdi32", "combase", "ntdll", "kernel32", "ole32", "shell32", "shlwapi", "user32") ; common used dlls
+	Graphic := Array("d3d11", "dxgi", "gdi32", "gdi32full", "Gdiplus", "glu32", "opengl32") ; graphics related
+	Crypt   := Array("advapi32", "bcrypt", "crypt32", "ncrypt", "rpcrt4", "secur32") ; crypt / security ralated
+	DllList := Map("Common used", Common, "Graphics related", Graphic, "Crypt / security ralated", Crypt)
 
 	switch GuiTheme
 	{
@@ -56,9 +61,22 @@ DllExportViewer(GuiTheme := "")
 		TraySetIcon("shell32.dll", 73)
 
 
+	; MENU BAR ==========================================================================================================================================================
+
+	FileMenu := Menu()
+	for key, value in DllList
+		FileMenu.Add(key, MenuHandler)
+	FileMenu.Add()
+	FileMenu.Add("System32", MenuHandler)
+	FileMenu.Add("SysWOW64", MenuHandler)
+	MyMenuBar := MenuBar()
+	MyMenuBar.Add("&Load Dll's", FileMenu)
+
+
 	; GUI ===============================================================================================================================================================
 
 	Main := Gui("+Resize +MinSize840x480", App["name"])
+	Main.MenuBar   := MyMenuBar
 	Main.BackColor := TBack
 	Main.MarginX   := 10
 	Main.MarginY   := 10
@@ -66,19 +84,26 @@ DllExportViewer(GuiTheme := "")
 	Main.SetFont("s9" TFont, "Segoe UI")
 	LV1_Header := ["#", "Function Name", "Ordinal", "Entry Point (RVA)", "Module Name", "Module Path"]
 	LV2_Header := ["Module Name", "Module Path"]
-	LV1 := Main.AddListView("xm  ym w760 h540" TCtrls, LV1_Header)
+	LV1 := Main.AddListView("xm ym w760 h540" TCtrls, LV1_Header)
 	LV1.OnEvent("ContextMenu", LV1_ContextMenu)
 	LV2 := Main.AddListView("x+10 yp w220 h540" TCtrls, LV2_Header)
+	Folder := Map()
 	loop Files, A_WinDir "\System32\*.dll"
+	{
+		Folder[A_LoopFileName] := A_LoopFileFullPath
 		LV2.Add(, A_LoopFileName, A_LoopFileFullPath)
+	}
 	LV2.ModifyCol(1, 198, "Module Name (" LV2.GetCount() ")")
 	LV2.ModifyCol(2, 0)
 	LV2.OnEvent("DoubleClick", LV2_DoubleClick)
 	LV2.OnEvent("ContextMenu", LV2_ContextMenu)
 	ED1 := Main.AddEdit("xm y+7 w300" TCtrls)
-	ED1.OnEvent("Change", LV_Search)
+	ED1.OnEvent("Change", LV1_Search)
 	EM_SETCUEBANNER(ED1, "Search...")
 	TX1 := Main.AddText("x+5 yp w455 h23 0x202")
+	ED2 := Main.AddEdit("x+10 yp w220" TCtrls)
+	ED2.OnEvent("Change", LV2_Search)
+	EM_SETCUEBANNER(ED2, "Search...")
 	Main.OnEvent("DropFiles", GuiDropFiles)
 	Main.OnEvent("Size", GuiSize)
 	Main.OnEvent("Close", (*) => ExitApp)
@@ -95,6 +120,9 @@ DllExportViewer(GuiTheme := "")
 		}
 		DllCall("dwmapi\DwmSetWindowAttribute", "Ptr", Main.hWnd, "Int", DWMWA_USE_IMMERSIVE_DARK_MODE, "Int*", true, "Int", 4)
 		SetExplorerTheme(LV1.hWnd, "DarkMode_Explorer"), SetExplorerTheme(LV2.hWnd, "DarkMode_Explorer")
+		uxtheme := DllCall("GetModuleHandle", "Str", "uxtheme", "Ptr")
+		DllCall(DllCall("GetProcAddress", "Ptr", uxtheme, "Ptr", 135, "Ptr"), "Int", 2) ; ForceDark
+		DllCall(DllCall("GetProcAddress", "Ptr", uxtheme, "Ptr", 136, "Ptr"))
 	}
 	else
 		SetExplorerTheme(LV1.hWnd), SetExplorerTheme(LV2.hWnd)
@@ -115,6 +143,37 @@ DllExportViewer(GuiTheme := "")
 		}
 	}
 
+	; MENU EVENTS =======================================================================================================================================================
+
+	MenuHandler(ItemName, *)
+	{
+		Folder := Map()
+		LV2.Opt("-Redraw")
+		LV2.Delete()
+		switch ItemName
+		{
+			case "System32", "SysWOW64":
+			{
+				loop Files, A_WinDir "\" ItemName "\*.dll"
+				{
+					Folder[A_LoopFileName] := A_LoopFileFullPath
+					LV2.Add(, A_LoopFileName, A_LoopFileFullPath)
+				}
+			}
+			default:
+			{
+				GetFiles := Array()
+				for k, v in DllList[ItemName]
+				{
+					Folder[v ".dll"] := A_WinDir "\System32\" v ".dll"
+					LV2.Add(, v ".dll", A_WinDir "\System32\" v ".dll")
+				}
+			}
+		}
+		LV2.ModifyCol(1, 198, "Module Name (" LV2.GetCount() ")")
+		LV2.Opt("+Redraw")
+	}
+
 
 	; WINDOW EVENTS =====================================================================================================================================================
 
@@ -124,8 +183,9 @@ DllExportViewer(GuiTheme := "")
 			return
 		LV1.Move(,, Width - 250, Height - 50)
 		LV2.Move(Width - 230,,, Height - 50)
-		ED1.Move(, Height - 33,)
-		TX1.Move(Width - 695, Height - 33,)
+		ED1.Move(, Height - 33)
+		TX1.Move(Width - 695, Height - 33)
+		ED2.Move(Width - 230, Height - 33)
 	}
 
 
@@ -152,7 +212,7 @@ DllExportViewer(GuiTheme := "")
 				}
 				LV_LoadFiles(GetFiles)
 			}
-			case "SysListView321":
+			case "SysListView322":
 			default:
 				return
 		}
@@ -166,6 +226,7 @@ DllExportViewer(GuiTheme := "")
 			LV_Menu := Menu()
 			LV_Menu.Add("Function Info", LV_ShowFunctionInfo)
 			LV_Menu.Add("Module Info", LV_ShowModuleInfo)
+			LV_Menu.Add("Search Web", LV_SearchFunction)
 			LV_Menu.Show(X, Y)
 		}
 
@@ -183,6 +244,13 @@ DllExportViewer(GuiTheme := "")
 			GetList := ListViewGetContent("Focused Col6", LV1)
 			ChildModuleInfo(GetList)
 		}
+
+		LV_SearchFunction(*)
+		{
+			GetFunc := ListViewGetContent("Focused Col2", LV1)
+			try
+				Run "https://learn.microsoft.com/en-us/search/?terms=" GetFunc
+		}
 	}
 
 
@@ -191,9 +259,15 @@ DllExportViewer(GuiTheme := "")
 		if (LV2.GetCount() > 0)
 		{
 			LV_Menu := Menu()
-			LV_Menu.Add("Load", LV_Load)
+			LV_Menu.Add("Select All", LV_MenuSelect)
+			LV_Menu.Add("Load Module", LV_Load)
 			LV_Menu.Add("Module Info", LV_ShowModuleInfo)
 			LV_Menu.Show(X, Y)
+		}
+
+		LV_MenuSelect(*)
+		{
+			LV2.Modify(0, "Select")
 		}
 
 		LV_Load(*)
@@ -360,7 +434,7 @@ DllExportViewer(GuiTheme := "")
 	}
 
 
-	LV_Search(CtrlObj, *)
+	LV1_Search(CtrlObj, *)
 	{
 		if (IsSet(DllLoaded))
 		{
@@ -375,6 +449,19 @@ DllExportViewer(GuiTheme := "")
 			LV1.Opt("+Redraw")
 			TX1.Value := LV1.GetCount() " Functions "
 		}
+	}
+
+
+	LV2_Search(CtrlObj, *)
+	{
+		LV2.Opt("-Redraw")
+		LV2.Delete()
+		for k, v in Folder
+			try
+				if (RegExMatch(SubStr(k, 1, -4), "i)" CtrlObj.Value))
+					LV2.Add("", k, v)
+		LV2.ModifyCol(1, 198, "Module Name (" LV2.GetCount() ")")
+		LV2.Opt("+Redraw")
 	}
 
 

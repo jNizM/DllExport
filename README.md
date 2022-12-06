@@ -1,5 +1,5 @@
 # AHK Dll Export Viewer
-[![AHK](https://img.shields.io/badge/ahk-2.0--beta.15-C3D69B.svg?style=flat-square)]()
+[![AHK](https://img.shields.io/badge/ahk-2.0--rc.2-C3D69B.svg?style=flat-square)]()
 [![OS](https://img.shields.io/badge/os-windows-C3D69B.svg?style=flat-square)]()
 [![Releases](https://img.shields.io/github/downloads/jNizM/DllExport/total.svg?style=flat-square&color=95B3D7)](https://github.com/jNizM/DllExport/releases)
 
@@ -27,6 +27,7 @@ Displays a list of all exported functions for the specified Dll files.
 * [ImageDirectoryEntryToData](https://learn.microsoft.com/en-us/windows/win32/api/dbghelp/nf-dbghelp-imagedirectoryentrytodata)
 * [ImageRvaToVa](https://learn.microsoft.com/en-us/windows/win32/api/dbghelp/nf-dbghelp-imagervatova)
 * [PE Format Layout](https://drive.google.com/file/d/0B3_wGJkuWLytbnIxY1J5WUs4MEk/view)
+* [PE Format](https://learn.microsoft.com/en-us/windows/win32/debug/pe-format)
 
 
 ## Contributing
